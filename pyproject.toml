@@ -1,0 +1,26 @@
+[project]
+name = "fitness-agents"
+version = "0.1.0"
+description = "Multi-agent fitness tracking workflow (LangGraph + Claude)"
+authors = [
+    { name = "Jackson Lindsey", email = "jacksonhlindsey@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.13.0",
+    "langgraph>=1.2.14",
+    "pydantic>=2.14.0",
+    "python-dotenv>=1.2.4",
+]
+
+[project.scripts]
+fitness-agents = "fitness_agents.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
