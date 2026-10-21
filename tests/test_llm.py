@@ -38,6 +38,7 @@ class FakeModels:
 def fake_gemini(monkeypatch):
     monkeypatch.setattr(config, "PROVIDER", "gemini")
     monkeypatch.setattr(config, "MODEL", "gemini-3.8-flash")
+    monkeypatch.setattr(config, "FAST_MODEL", "gemini-3.5-flash-lite")
     monkeypatch.setattr(llm.time, "sleep", lambda s: None)
 
     def install(failures):
@@ -50,17 +51,23 @@ def fake_gemini(monkeypatch):
 
 def test_retries_same_model_when_briefly_overloaded(fake_gemini):
     models = fake_gemini({"gemini-3.8-flash": [overloaded()]})
-    assert llm.ask("sys", "hi", Answer).ok
+    assert llm.ask("sys", "hi", Answer, effort="medium").ok
     assert models.calls == ["gemini-3.8-flash", "gemini-3.8-flash"]
 
 
 def test_falls_back_to_next_model(fake_gemini):
     models = fake_gemini({"gemini-3.8-flash": [overloaded()] * 3, "gemini-3.6-flash": [quota()]})
-    assert llm.ask("sys", "hi", Answer).ok
+    assert llm.ask("sys", "hi", Answer, effort="medium").ok
     assert models.calls == ["gemini-3.8-flash"] * 3 + ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
 
 
 def test_gives_up_with_a_helpful_message(fake_gemini):
     fake_gemini({m: [overloaded()] * 3 for m in ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")})
     with pytest.raises(llm.LLMError, match="ollama"):
-        llm.ask("sys", "hi", Answer)
+        llm.ask("sys", "hi", Answer, effort="medium")
+
+
+def test_quick_jobs_use_the_fast_model_first(fake_gemini):
+    models = fake_gemini({"gemini-3.5-flash-lite": [quota()]})
+    assert llm.ask("sys", "hi", Answer, effort="low").ok
+    assert models.calls == ["gemini-3.5-flash-lite", "gemini-3.6-flash"]

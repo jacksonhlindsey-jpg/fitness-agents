@@ -36,7 +36,7 @@ def per_100g(query: str) -> dict | None:
         "api_key": config.USDA_API_KEY,
     })
     try:
-        with urllib.request.urlopen(f"{SEARCH_URL}?{params}", timeout=10) as resp:
+        with urllib.request.urlopen(f"{SEARCH_URL}?{params}", timeout=5) as resp:
             data = json.load(resp)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return None  # network trouble: don't cache, fall back to the LLM estimate this time

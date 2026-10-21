@@ -40,7 +40,7 @@ def ask(system: str, prompt: str, schema: type[T], effort: Effort = "low") -> T:
 
 # Free-tier models are often overloaded (503) or rate limited (429). Each model has its
 # own quota, so when one is busy we retry briefly and then move to the next.
-GEMINI_BACKUP_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+GEMINI_BACKUP_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]  # tried in this order
 _RETRY_WAITS = (2, 5)  # seconds to wait before each retry on the same model
 
 _gemini_client = None
@@ -58,7 +58,8 @@ def _ask_gemini(system: str, prompt: str, schema: type[BaseModel], effort: Effor
         response_mime_type="application/json",
         response_json_schema=schema.model_json_schema(),
     )
-    models = [config.MODEL] + [m for m in GEMINI_BACKUP_MODELS if m != config.MODEL]
+    first = config.FAST_MODEL if effort == "low" else config.MODEL
+    models = [first] + [m for m in GEMINI_BACKUP_MODELS if m != first]
 
     for model in models:
         for wait in (0, *_RETRY_WAITS):

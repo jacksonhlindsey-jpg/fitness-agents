@@ -14,6 +14,9 @@ OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 PROVIDER = os.getenv("FITNESS_PROVIDER") or ("gemini" if GEMINI_API_KEY else "ollama")
 DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "ollama": "qwen3:8b", "anthropic": "claude-opus-5-5"}
 MODEL = os.getenv("FITNESS_MODEL") or DEFAULT_MODELS[PROVIDER]
+# Quick jobs (routing a message, parsing a food log) use a faster model on Gemini;
+# the planners and the Reviewer use MODEL.
+FAST_MODEL = os.getenv("FITNESS_FAST_MODEL") or ("gemini-3.5-flash-lite" if PROVIDER == "gemini" else MODEL)
 
 USDA_API_KEY = os.getenv("USDA_API_KEY", "DEMO_KEY")
 
