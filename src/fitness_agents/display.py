@@ -1,4 +1,6 @@
-"""Plain-text formatting for plans shown in the terminal."""
+"""Plain-text formatting for plans and agent traces shown in the terminal."""
+
+import json
 
 
 def format_meal_plan(plan: dict) -> str:
@@ -33,4 +35,20 @@ def format_workout_plan(plan: dict) -> str:
             lines.append(f"    - {ex['name']}: {ex['sets']} x {ex['reps']}{weight}")
     if plan.get("notes"):
         lines.append(f"\n  Notes: {plan['notes']}")
+    return "\n".join(lines)
+
+
+def format_trace(trace: list[dict]) -> str:
+    """The Tracker agent's run as readable text: thought -> tool calls -> observations -> answer."""
+    lines = []
+    for step in trace:
+        if step["step"] == "answer":
+            label = {"finish": "Answer", "ask_user": "Asked the user", "step_limit": "Stopped (step limit)"}[step["type"]]
+            lines.append(f"{label}: {step['text']}")
+            continue
+        lines.append(f"Step {step['step']}")
+        lines.append(f"  Thought: {step['thought']}")
+        for call in step["calls"]:
+            lines.append(f"  Tool call: {call['tool']}({json.dumps(call['input'])})")
+            lines.append(f"  Observation: {json.dumps(call['observation'])}")
     return "\n".join(lines)

@@ -12,6 +12,7 @@ so the web UI and the CLI share one profile.
 """
 
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import Annotated, Literal
@@ -22,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
-from . import calc, config, db, llm
+from . import calc, config, db, llm, nutrition_api
 from .graph import build_graph
 
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
@@ -161,7 +162,7 @@ def _run(payload, thread_id: str) -> dict:
     if "__interrupt__" in result:
         pending = result["__interrupt__"][0].value
         return {"type": "approval", "thread_id": thread_id, **pending}
-    return {"type": "message", "response": result.get("response", "")}
+    return {"type": "message", "response": result.get("response", ""), "trace": result.get("trace")}
 
 
 @app.post("/api/chat")
@@ -181,7 +182,16 @@ def approve(body: ApproveIn, user: User):
 
 
 @app.get("/api/status")
-def status():
+def status(check: str | None = None):
+    """Server info. ?check=usda also makes one live USDA lookup and reports how it went."""
+    if check == "usda":
+        start = time.monotonic()
+        try:
+            found = len(nutrition_api.fetch("banana"))
+            usda = f"ok: {found} results"
+        except nutrition_api.LookupFailed as e:
+            usda = f"failed: {e}"
+        return {"usda_check": f"{usda} in {time.monotonic() - start:.1f}s"}
     return {
         "provider": config.PROVIDER,
         "model": config.MODEL,

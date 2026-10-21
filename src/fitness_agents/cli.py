@@ -9,7 +9,7 @@ import uuid
 from langgraph.types import Command
 
 from . import calc, config, db, llm
-from .display import format_meal_plan, format_workout_plan
+from .display import format_meal_plan, format_trace, format_workout_plan
 from .graph import build_graph
 
 DISCLAIMER = (
@@ -21,7 +21,7 @@ HELP = """Just type naturally, for example:
   bench 185 for 5
   make me a meal plan  /  build me a workout plan  /  make me a full plan
   how am I doing?
-Commands: /profile (set up or redo profile), /today, /help, /quit"""
+Commands: /profile (set up or redo profile), /today, /trace (how the agent handled your last log), /help, /quit"""
 
 
 def main() -> None:
@@ -32,6 +32,7 @@ def main() -> None:
     print(HELP)
 
     graph = build_graph()
+    last_trace = None
     while True:
         try:
             text = input("\nyou> ").strip()
@@ -46,15 +47,18 @@ def main() -> None:
             print(HELP)
         elif text == "/profile":
             onboard()
+        elif text == "/trace":
+            print(format_trace(last_trace) if last_trace else "No agent trace yet. Log something first.")
         elif text == "/today":
             t = db.day_totals(db.LOCAL_USER)
             print(f"Today: {t['calories']} kcal | protein {t['protein_g']} g | carbs {t['carbs_g']} g"
                   f" | fat {t['fat_g']} g | water {t['water_oz']} oz")
         else:
-            run_turn(graph, text)
+            last_trace = run_turn(graph, text) or last_trace
 
 
-def run_turn(graph, text: str) -> None:
+def run_turn(graph, text: str) -> list[dict] | None:
+    """Run one message through the agents. Returns the Tracker's trace, if it ran."""
     # Each message gets its own thread, so plan state doesn't leak between requests.
     cfg = {"configurable": {"thread_id": str(uuid.uuid4())}}
     try:
@@ -64,8 +68,12 @@ def run_turn(graph, text: str) -> None:
             result = graph.invoke(Command(resume=decision), cfg)
     except llm.LLMError as e:
         print(f"agent> Sorry, something went wrong: {e}")
-        return
+        return None
     print(f"agent> {result.get('response', '')}")
+    if result.get("trace"):
+        steps = sum(1 for s in result["trace"] if s["step"] != "answer")
+        print(f"       (Tracker agent: {steps} step{'s' if steps != 1 else ''}; type /trace to see them)")
+    return result.get("trace")
 
 
 def ask_approval(payload: dict) -> dict:

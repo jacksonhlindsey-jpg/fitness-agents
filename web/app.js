@@ -110,8 +110,29 @@ function handleResult(result) {
     renderApproval(card, result);
     card.scrollIntoView({ behavior: "smooth", block: "start" });
   } else {
-    addMessage("agent", result.response || "Done.");
+    const msg = addMessage("agent", result.response || "Done.");
+    if (result.trace) msg.append(traceView(result.trace));
   }
+}
+
+// The Tracker agent's run: thought -> tool calls -> observations -> answer.
+function traceView(trace) {
+  const steps = trace.filter((s) => s.step !== "answer");
+  const answer = trace.find((s) => s.step === "answer");
+  const short = (value) => {
+    const text = JSON.stringify(value);
+    return text.length > 600 ? text.slice(0, 600) + "…" : text;
+  };
+  const labels = { finish: "Answer", ask_user: "Asked you", step_limit: "Stopped at the step limit" };
+  return h("details", { class: "trace" },
+    h("summary", {}, `How the Tracker agent worked this out · ${steps.length} step${steps.length === 1 ? "" : "s"}`),
+    h("ol", {}, steps.map((s) =>
+      h("li", {},
+        h("div", { class: "thought" }, h("strong", {}, "Thought "), s.thought),
+        s.calls.map((c) => h("div", { class: "call" },
+          h("code", {}, `${c.tool}(${JSON.stringify(c.input)})`),
+          h("div", { class: "observation" }, "→ ", short(c.observation))))))),
+    answer ? h("div", { class: "trace-answer" }, h("strong", {}, `${labels[answer.type] || "Answer"}: `), answer.text) : null);
 }
 
 function setBusy(busy) {

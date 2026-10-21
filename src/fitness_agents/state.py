@@ -21,3 +21,4 @@ class FitnessState(TypedDict, total=False):
     approved: bool
 
     response: str               # final text shown to the user
+    trace: list[dict]           # the Tracker agent's steps: thought -> tool calls -> observations -> answer

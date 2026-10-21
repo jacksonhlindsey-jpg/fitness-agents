@@ -74,7 +74,7 @@ What should change? no oatmeal, I hate it
 | Agent | Role | LLM? |
 |---|---|---|
 | **Orchestrator** | Classifies each message (log / meal plan / workout plan / full plan / progress / chat) and routes it | yes (low effort) |
-| **Tracker** | Turns free text into structured logs; looks up calories in USDA FoodData Central; updates max lifts from logged sets | yes, for parsing only |
+| **Tracker** | A tool-using agent loop (up to 6 steps). Tools: `search_food` (USDA FoodData Central), `log_food`, `log_activity`, `log_body_metric`, `get_today_totals`, `ask_user`, `finish`. Records a trace of every step | yes, decides which tools to call |
 | **Nutrition Planner** | One-day meal plan that hits the calorie and macro targets using foods the user likes | yes |
 | **Workout Planner** | Weekly schedule that prioritizes the user's weakest lifts | yes |
 | **Reviewer** (critic) | Hard safety rules in code plus an LLM critique; sends failing plans back for another draft | rules + LLM |
@@ -102,7 +102,8 @@ graph TD
 ### Design choices
 
 - **Math stays in code, not in the LLM.** BMI, Mifflin-St Jeor BMR/TDEE, calorie targets, macros, Epley 1RM, and strength ratios are in `calc.py` and unit tested. Meal plan totals are recomputed from the items instead of trusting the model's sums.
-- **Calories come from real data.** The Tracker gets values from USDA FoodData Central. It only falls back to the LLM's estimate when there's no match, or when the match is clearly wrong (more than 2× off from the estimate). Every log entry records its source.
+- **The Tracker is a real tool-using agent.** Each step it writes a thought and calls tools; the results come back as observations; it repeats until it calls `finish` or `ask_user`, or hits `MAX_STEPS` (6), the stop condition. Every run is recorded as a trace (thought, tool calls, observations, answer), shown under the reply in the web UI and with `/trace` in the CLI.
+- **Calories come from real data.** `search_food` returns up to 5 USDA candidates and the agent picks the one that matches what was eaten (fresh banana, not banana powder); `log_food` then scales that match's per-100 g values in code. The agent's own estimate is only used when nothing matches, USDA is down, or the match is more than 2x off (a guardrail). Every log entry records its source.
 - **Hard safety limits.** A calorie floor (1500 kcal for men, 1200 for women), weight change capped at 1% of body weight or 2 lb a week, a required rest day, and caps on sets per muscle. These are enforced in code, so the model can't argue past them.
 - **Parallel agents.** For a full plan, the Nutrition and Workout Planners run at the same time, and the Reviewer waits for both.
 - **Feedback loop.** The Reviewer sends only the failing plan back, with its specific issues, up to `MAX_REVISIONS` times.

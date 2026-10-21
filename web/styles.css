@@ -176,6 +176,14 @@ td.num, th.num { text-align: right; }
 .msg.thinking { color: var(--text-2); }
 .msg.thinking::after { content: ""; display: inline-block; width: 1.2em; text-align: left; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+.trace { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); white-space: normal; font-size: 13px; }
+.trace summary { cursor: pointer; color: var(--text-2); font-weight: 550; }
+.trace ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; }
+.trace .thought { color: var(--text); }
+.trace .call { margin: 4px 0 0 2px; }
+.trace code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); border-radius: 6px; padding: 1px 5px; overflow-wrap: anywhere; }
+.trace .observation { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text-2); margin: 2px 0 0 10px; overflow-wrap: anywhere; }
+.trace-answer { margin-top: 8px; }
 .welcome { color: var(--text-2); text-align: center; margin: 24px auto; max-width: 460px; }
 .welcome h2 { color: var(--text); font-size: 18px; margin-bottom: 6px; }
 .suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
