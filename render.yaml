@@ -5,6 +5,7 @@ services:
     name: fitness-agents
     runtime: python
     plan: free
+    region: virginia                   # same area as the Supabase database (us-east-1)
     # Render installs uv automatically because uv.lock is present; Python version comes from .python-version.
     buildCommand: uv sync --frozen --no-dev
     startCommand: uv run --frozen --no-dev fitness-web
