@@ -4,6 +4,7 @@ Docs: https://fdc.nal.usda.gov/api-guide
 """
 
 import json
+import logging
 import re
 import urllib.error
 import urllib.parse
@@ -12,6 +13,7 @@ import urllib.request
 from . import config, db
 
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
+log = logging.getLogger(__name__)
 
 # FoodData Central nutrient IDs. Energy can appear under several IDs depending on the dataset.
 ENERGY_IDS = (1008, 2047, 2048)
@@ -38,8 +40,12 @@ def per_100g(query: str) -> dict | None:
     try:
         with urllib.request.urlopen(f"{SEARCH_URL}?{params}", timeout=5) as resp:
             data = json.load(resp)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-        return None  # network trouble: don't cache, fall back to the LLM estimate this time
+    except urllib.error.HTTPError as e:
+        log.warning("USDA lookup for %r failed: HTTP %s", key, e.code)  # 403 = bad key, 429 = rate limit
+        return None  # don't cache, fall back to the LLM estimate this time
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        log.warning("USDA lookup for %r failed: %s", key, e)
+        return None
 
     foods = data.get("foods") or []
     nutrients = _extract(_best_match(key, foods)) if foods else None

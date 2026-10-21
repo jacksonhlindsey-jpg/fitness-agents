@@ -182,7 +182,12 @@ def approve(body: ApproveIn, user: User):
 
 @app.get("/api/status")
 def status():
-    return {"provider": config.PROVIDER, "model": config.MODEL, "multi_user": config.MULTI_USER}
+    return {
+        "provider": config.PROVIDER,
+        "model": config.MODEL,
+        "multi_user": config.MULTI_USER,
+        "usda_key": "demo" if config.USDA_API_KEY == "DEMO_KEY" else "personal",  # never the key itself
+    }
 
 
 # Serve the UI last so /api routes take priority.
