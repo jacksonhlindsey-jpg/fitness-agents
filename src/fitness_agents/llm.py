@@ -9,6 +9,7 @@ Default: gemini when GEMINI_API_KEY is set, otherwise ollama.
 """
 
 import json
+import time
 import urllib.error
 import urllib.request
 from typing import Literal, TypeVar
@@ -37,6 +38,11 @@ def ask(system: str, prompt: str, schema: type[T], effort: Effort = "low") -> T:
 
 # --- Gemini (free tier) ------------------------------------------------------
 
+# Free-tier models are often overloaded (503) or rate limited (429). Each model has its
+# own quota, so when one is busy we retry briefly and then move to the next.
+GEMINI_BACKUP_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+_RETRY_WAITS = (2, 5)  # seconds to wait before each retry on the same model
+
 _gemini_client = None
 
 
@@ -47,27 +53,36 @@ def _ask_gemini(system: str, prompt: str, schema: type[BaseModel], effort: Effor
     global _gemini_client
     if _gemini_client is None:
         _gemini_client = genai.Client(api_key=config.GEMINI_API_KEY)
-    try:
-        response = _gemini_client.models.generate_content(
-            model=config.MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                response_mime_type="application/json",
-                response_json_schema=schema.model_json_schema(),
-            ),
-        )
-    except errors.ClientError as e:
-        if e.code == 429:
-            raise LLMError("Hit the Gemini free-tier rate limit. Wait a minute and try again.") from None
-        if e.code in (400, 401, 403) and "key" in str(e).lower():
-            raise LLMError("Your GEMINI_API_KEY is missing or invalid. Check .env.") from None
-        raise LLMError(f"Gemini rejected the request ({e.code}).") from None
-    except errors.ServerError:
-        raise LLMError("Gemini is having trouble right now. Try again in a moment.") from None
-    if not response.text:
-        raise LLMError("Gemini returned an empty answer (it may have been blocked). Try rephrasing.")
-    return response.text
+    request_config = types.GenerateContentConfig(
+        system_instruction=system,
+        response_mime_type="application/json",
+        response_json_schema=schema.model_json_schema(),
+    )
+    models = [config.MODEL] + [m for m in GEMINI_BACKUP_MODELS if m != config.MODEL]
+
+    for model in models:
+        for wait in (0, *_RETRY_WAITS):
+            time.sleep(wait)
+            try:
+                response = _gemini_client.models.generate_content(
+                    model=model, contents=prompt, config=request_config
+                )
+            except errors.ServerError:
+                continue  # overloaded: retry, then fall through to the next model
+            except errors.ClientError as e:
+                if e.code == 429:
+                    break  # this model's quota is used up: go straight to the next model
+                if e.code in (400, 401, 403) and "key" in str(e).lower():
+                    raise LLMError("Your GEMINI_API_KEY is missing or invalid. Check .env.") from None
+                raise LLMError(f"Gemini rejected the request ({e.code}).") from None
+            if not response.text:
+                raise LLMError("Gemini returned an empty answer (it may have been blocked). Try rephrasing.")
+            return response.text
+
+    raise LLMError(
+        "Every free Gemini model is busy or out of quota right now. Wait a few minutes, "
+        "or set FITNESS_PROVIDER=ollama in .env to use the local model."
+    )
 
 
 # --- Ollama (local, free) ----------------------------------------------------
