@@ -18,7 +18,7 @@ services:
         value: https://jacksonhlindsey-jpg.github.io
       - key: GEMINI_API_KEY            # free key from https://aistudio.google.com/apikey
         sync: false
-      - key: DATABASE_URL              # free Postgres from Neon or Supabase (Render's free Postgres expires after 30 days)
+      - key: DATABASE_URL              # free Postgres: Supabase "Session pooler" string, or Neon (Render's free Postgres expires after 30 days)
         sync: false
       - key: USDA_API_KEY              # free key from https://fdc.nal.usda.gov/api-key-signup
         sync: false

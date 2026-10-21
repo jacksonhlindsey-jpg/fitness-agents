@@ -452,6 +452,8 @@ form.addEventListener("submit", async (e) => {
     clearTimeout(waking);
     $(".msg.thinking")?.remove();
     $("#model-status").textContent = "API offline";
-    addMessage("error", "Can't reach the agents' server. Start it with: uv run fitness-web");
+    addMessage("error", API
+      ? "Can't reach the agents' server right now. It may still be waking up; refresh in a minute."
+      : "Can't reach the agents' server. Start it with: uv run fitness-web");
   }
 })();

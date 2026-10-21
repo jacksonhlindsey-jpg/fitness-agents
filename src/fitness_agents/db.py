@@ -79,6 +79,8 @@ TYPES = {
     "postgres": {"id": "BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY", "real": "DOUBLE PRECISION"},
 }
 
+TABLES = ("profiles", "food_log", "activity_log", "metric_log", "plans", "food_cache")
+
 _ready: set[str] = set()  # databases whose schema has been checked this process
 
 
@@ -111,7 +113,9 @@ def _db():
         import psycopg
         from psycopg.rows import dict_row
 
-        with psycopg.connect(config.DATABASE_URL, row_factory=dict_row) as conn:
+        # Always encrypt traffic to a hosted database unless the URL says otherwise.
+        ssl = {} if "sslmode=" in config.DATABASE_URL else {"sslmode": "require"}
+        with psycopg.connect(config.DATABASE_URL, row_factory=dict_row, **ssl) as conn:
             if config.DATABASE_URL not in _ready:
                 for statement in _schema("postgres"):
                     conn.execute(statement)
@@ -135,7 +139,12 @@ def _db():
 def _schema(backend: str) -> list[str]:
     sql = SCHEMA.format(**TYPES[backend])
     lines = [line.split("--")[0] for line in sql.splitlines()]
-    return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+    statements = [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+    if backend == "postgres":
+        # Supabase publishes tables through its Data API unless row-level security is on.
+        # With RLS on and no policies, only the table owner (this app) can read or write them.
+        statements += [f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY" for t in TABLES]
+    return statements
 
 
 def _migrate_single_user_sqlite(conn: sqlite3.Connection) -> None:
