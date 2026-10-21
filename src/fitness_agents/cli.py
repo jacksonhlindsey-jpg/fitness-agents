@@ -6,10 +6,9 @@ Run with:  uv run fitness-agents
 import re
 import uuid
 
-import anthropic
 from langgraph.types import Command
 
-from . import calc, db, llm
+from . import calc, config, db, llm
 from .display import format_meal_plan, format_workout_plan
 from .graph import build_graph
 
@@ -26,7 +25,7 @@ Commands: /profile (set up or redo profile), /today, /help, /quit"""
 
 
 def main() -> None:
-    print("Fitness Agents\n" + DISCLAIMER + "\n")
+    print(f"Fitness Agents  (model: {config.MODEL} via {config.PROVIDER})\n" + DISCLAIMER + "\n")
     if not db.get_profile():
         print("Let's set up your profile first.\n")
         onboard()
@@ -65,12 +64,6 @@ def run_turn(graph, text: str) -> None:
             result = graph.invoke(Command(resume=decision), cfg)
     except llm.LLMError as e:
         print(f"agent> Sorry, something went wrong: {e}")
-        return
-    except anthropic.AuthenticationError:
-        print("agent> Your ANTHROPIC_API_KEY is missing or invalid. Add it to .env and restart.")
-        return
-    except anthropic.APIError as e:
-        print(f"agent> The Claude API returned an error, try again in a moment. ({e.__class__.__name__})")
         return
     print(f"agent> {result.get('response', '')}")
 

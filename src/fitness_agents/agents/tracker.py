@@ -21,8 +21,9 @@ portion; these are only used if the database has no match.
 Activities: runs/walks need distance in miles and/or duration; lifts need the exercise name
 using one of: bench, squat, deadlift, ohp, or another plain name, plus sets, reps, and weight in lb.
 
-If something essential is too ambiguous to log (e.g. "some pasta" with no hint of amount),
-put one short question in `clarification` and leave the lists empty. Otherwise leave it empty.
+Only if something essential is too ambiguous to log (e.g. "some pasta" with no hint of amount),
+set needs_clarification to true, put one short question in clarification_question, and leave
+the lists empty. Otherwise set needs_clarification to false and leave the question empty.
 Assume normal portions when a reasonable default exists ("a bowl of cereal", "a banana")."""
 
 
@@ -52,13 +53,14 @@ class ParsedLog(BaseModel):
     activities: list[Activity]
     water_oz: float | None
     body_weight_lb: float | None
-    clarification: str
+    needs_clarification: bool
+    clarification_question: str
 
 
 def tracker(state: FitnessState) -> FitnessState:
     parsed = llm.ask(SYSTEM, state["user_input"], ParsedLog, effort="low")
-    if parsed.clarification:
-        return {"response": parsed.clarification}
+    if parsed.needs_clarification and parsed.clarification_question:
+        return {"response": parsed.clarification_question}
 
     lines: list[str] = []
     for item in parsed.foods:

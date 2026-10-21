@@ -25,7 +25,7 @@ def test_logs_food_from_usda_and_updates_max(monkeypatch):
         ],
         activities=[Activity(kind="lift", description="bench 205x5", distance_mi=None, duration_min=None,
                              exercise="bench", sets=1, reps=5, weight_lb=205)],
-        water_oz=16, body_weight_lb=None, clarification="",
+        water_oz=16, body_weight_lb=None, needs_clarification=False, clarification_question="",
     )
     monkeypatch.setattr(llm, "ask", lambda *a, **k: parsed)
     usda = {"description": "Egg, scrambled", "calories": 149, "protein_g": 10, "carbs_g": 1.6, "fat_g": 11, "fiber_g": 0}
@@ -40,7 +40,8 @@ def test_logs_food_from_usda_and_updates_max(monkeypatch):
 
 def test_ambiguous_input_asks_instead_of_logging(monkeypatch):
     parsed = ParsedLog(foods=[], activities=[], water_oz=None, body_weight_lb=None,
-                       clarification="Roughly how much pasta, about one cup or a full plate?")
+                       needs_clarification=True,
+                       clarification_question="Roughly how much pasta, about one cup or a full plate?")
     monkeypatch.setattr(llm, "ask", lambda *a, **k: parsed)
     out = tracker({"user_input": "had some pasta", "profile": PROFILE})["response"]
     assert "pasta" in out
@@ -57,7 +58,7 @@ def test_bad_usda_match_falls_back_to_estimate(monkeypatch):
     parsed = ParsedLog(
         foods=[FoodItem(name="banana", search_term="banana, raw", grams=120, est_calories=105,
                         est_protein_g=1, est_carbs_g=27, est_fat_g=0)],
-        activities=[], water_oz=None, body_weight_lb=None, clarification="",
+        activities=[], water_oz=None, body_weight_lb=None, needs_clarification=False, clarification_question="",
     )
     monkeypatch.setattr(llm, "ask", lambda *a, **k: parsed)
     dried = {"description": "Bananas, dehydrated", "calories": 346, "protein_g": 3.9, "carbs_g": 88, "fat_g": 1.8, "fiber_g": 10}

@@ -2,7 +2,7 @@
 
 A multi-agent fitness tracker for CIS 4394 (Agentic AI). Log meals, water, weight, runs and lifts in plain English, and get meal and workout plans built around your goals, your preferences, and your weakest lifts.
 
-Built with **LangGraph** (agent orchestration) and **Claude** (via the Anthropic Python SDK).
+Built with **LangGraph** (agent orchestration). Runs **free**: on Google Gemini's free tier, or on a local model through Ollama with no account at all.
 
 > This is a class project, not medical advice.
 
@@ -13,12 +13,24 @@ Requires [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 ```bash
 cd ~/fitness-agents
 uv sync
-cp .env.example .env      # then add your ANTHROPIC_API_KEY (and optionally a USDA key)
+cp .env.example .env
 uv run fitness-agents
 ```
 
-- **Anthropic API key:** https://platform.claude.com → Settings → API Keys (API usage is billed separately from a Claude.ai subscription)
-- **USDA FoodData Central key (free):** https://fdc.nal.usda.gov/api-key-signup. `DEMO_KEY` works but is rate-limited to about 30 requests an hour.
+Pick one free LLM provider:
+
+| | Gemini free tier | Ollama (local) |
+|---|---|---|
+| Cost | Free, no credit card | Free |
+| Setup | Key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey), set `GEMINI_API_KEY` in `.env` | [Install Ollama](https://ollama.com), then `ollama pull qwen3:8b` (5.2 GB) |
+| Speed and quality | Fast, strong | Slower; fine on a 16 GB Mac |
+| Limits | Free-tier requests per minute and per day | None |
+| Privacy | Google may use free-tier prompts to improve its products | Nothing leaves your computer |
+| Works when hosted online | Yes | No (needs your computer) |
+
+If `GEMINI_API_KEY` is set, the app uses Gemini; otherwise it uses Ollama. Override with `FITNESS_PROVIDER` and `FITNESS_MODEL`. Claude (`FITNESS_PROVIDER=anthropic`) is also supported, but it's a paid API.
+
+Calorie data comes from USDA FoodData Central. `DEMO_KEY` works but allows about 30 lookups an hour; a [free personal key](https://fdc.nal.usda.gov/api-key-signup) removes that limit.
 
 Run the tests (no API key needed; the LLM is faked):
 
@@ -99,7 +111,7 @@ src/fitness_agents/
   calc.py             fitness formulas and safety limits
   nutrition_api.py    USDA FoodData Central lookup + cache
   db.py               SQLite storage
-  llm.py              Anthropic SDK wrapper (structured outputs)
+  llm.py              LLM providers (Gemini, Ollama, Claude) behind one structured-output call
 tests/                unit tests and a full-workflow test with a fake LLM
 ```
 
