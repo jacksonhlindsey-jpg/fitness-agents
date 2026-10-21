@@ -62,28 +62,29 @@ def tracker(state: FitnessState) -> FitnessState:
     if parsed.needs_clarification and parsed.clarification_question:
         return {"response": parsed.clarification_question}
 
+    user_id = state["user_id"]
     lines: list[str] = []
     for item in parsed.foods:
-        lines.append(_log_food(item))
+        lines.append(_log_food(user_id, item))
     for activity in parsed.activities:
-        db.log_activity(activity.model_dump())
+        db.log_activity(user_id, activity.model_dump())
         lines.append(f"Logged {activity.description}")
     if parsed.water_oz:
-        db.log_metric("water_oz", parsed.water_oz)
+        db.log_metric(user_id, "water_oz", parsed.water_oz)
         lines.append(f"Logged {parsed.water_oz:g} oz water")
     if parsed.body_weight_lb:
-        db.log_metric("body_weight_lb", parsed.body_weight_lb)
+        db.log_metric(user_id, "body_weight_lb", parsed.body_weight_lb)
         lines.append(f"Logged weight {parsed.body_weight_lb:g} lb")
 
     profile = state.get("profile") or {}
-    lines += _update_maxes(profile, parsed.activities, parsed.body_weight_lb)
+    lines += _update_maxes(user_id, profile, parsed.activities, parsed.body_weight_lb)
     if parsed.foods:
-        lines += _daily_summary(profile)
+        lines += _daily_summary(user_id, profile)
 
     return {"response": "\n".join(lines) or "I didn't find anything to log in that message."}
 
 
-def _log_food(item: FoodItem) -> str:
+def _log_food(user_id: str, item: FoodItem) -> str:
     per_100g = nutrition_api.per_100g(item.search_term)
     values = nutrition_api.scale(per_100g, item.grams) if per_100g else None
     # Guard against a bad database match: if USDA and the estimate disagree by more
@@ -98,12 +99,12 @@ def _log_food(item: FoodItem) -> str:
             "carbs_g": item.est_carbs_g, "fat_g": item.est_fat_g, "fiber_g": None,
         }
         source = "estimate"
-    db.log_food({"food": item.name, "grams": item.grams, "source": source, **values})
+    db.log_food(user_id, {"food": item.name, "grams": item.grams, "source": source, **values})
     tag = "" if source == "usda" else " (estimated)"
     return f"Logged {item.name} (~{item.grams:g} g): {values['calories']:.0f} kcal{tag}"
 
 
-def _update_maxes(profile: dict, activities: list[Activity], new_weight: float | None) -> list[str]:
+def _update_maxes(user_id: str, profile: dict, activities: list[Activity], new_weight: float | None) -> list[str]:
     """Raise stored max lifts when a logged set implies a higher one-rep max."""
     if not profile:
         return []
@@ -119,12 +120,12 @@ def _update_maxes(profile: dict, activities: list[Activity], new_weight: float |
     if new_weight:
         profile["weight_lb"] = new_weight
     if notes or new_weight:
-        db.save_profile(profile)
+        db.save_profile(user_id, profile)
     return notes
 
 
-def _daily_summary(profile: dict) -> list[str]:
-    totals = db.day_totals()
+def _daily_summary(user_id: str, profile: dict) -> list[str]:
+    totals = db.day_totals(user_id)
     if not profile:
         return [f"Today so far: {totals['calories']} kcal"]
     target = calc.calorie_target(profile)["target"]

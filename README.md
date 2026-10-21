@@ -41,6 +41,14 @@ Run the tests (no API key needed; the LLM is faked):
 uv run pytest
 ```
 
+## Hosted version
+
+- **Web UI:** GitHub Pages, published from `web/` by `.github/workflows/pages.yml` on every push to `main`.
+- **Agents' API:** a free Render web service defined in `render.yaml` (Pages can only serve static files, so the Python server and the API keys live there). `web/config.js` points the Pages site at it.
+- **Data:** free Postgres (Neon or Supabase) via `DATABASE_URL`, because Render's free disk is wiped on every restart. Locally the app keeps using SQLite.
+- **Privacy:** with `FITNESS_MULTI_USER=1`, each browser gets a random ID and only ever sees its own profile, logs, and plans. Locally, the CLI and the web UI share one profile.
+- Render's free tier sleeps after 15 idle minutes, so the first visit after that takes about a minute while it wakes up.
+
 ## Example session
 
 ```
@@ -122,6 +130,5 @@ tests/                unit tests and a full-workflow test with a fake LLM
 
 ## Next steps
 
-- Host it: web/ on GitHub Pages, the API on a free host (Pages can't run Python or hold an API key). Set `window.FITNESS_API_BASE` in `web/config.js` and `FITNESS_CORS_ORIGINS` on the server.
 - Exercise database (wger) for exercise alternatives
 - Evaluation: compare Tracker calorie estimates against USDA values on a fixed set of meals

@@ -1,0 +1,24 @@
+# Render blueprint for the agents' API (free web service).
+# In Render: New > Blueprint > pick this repo. You'll be asked for the secret values below.
+services:
+  - type: web
+    name: fitness-agents
+    runtime: python
+    plan: free
+    # Render installs uv automatically because uv.lock is present; Python version comes from .python-version.
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run --frozen --no-dev fitness-web
+    healthCheckPath: /api/status
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: FITNESS_MULTI_USER        # each browser gets its own private data
+        value: "1"
+      - key: FITNESS_CORS_ORIGINS      # the GitHub Pages site that calls this API
+        value: https://jacksonhlindsey-jpg.github.io
+      - key: GEMINI_API_KEY            # free key from https://aistudio.google.com/apikey
+        sync: false
+      - key: DATABASE_URL              # free Postgres from Neon or Supabase (Render's free Postgres expires after 30 days)
+        sync: false
+      - key: USDA_API_KEY              # free key from https://fdc.nal.usda.gov/api-key-signup
+        sync: false

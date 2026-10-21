@@ -16,7 +16,14 @@ DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "ollama": "qwen3:8b", "anthropic
 MODEL = os.getenv("FITNESS_MODEL") or DEFAULT_MODELS[PROVIDER]
 
 USDA_API_KEY = os.getenv("USDA_API_KEY", "DEMO_KEY")
+
+# Storage: SQLite file locally; Postgres when DATABASE_URL is set (hosted).
 DB_PATH = Path(os.getenv("FITNESS_DB", "data/fitness.db"))
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# Hosted: every browser gets its own data (identified by an X-User-Id header).
+# Local: the CLI and the web UI share one profile.
+MULTI_USER = os.getenv("FITNESS_MULTI_USER", "") == "1"
 
 # How many times the Reviewer may send a plan back before it goes to the user anyway.
 MAX_REVISIONS = 2

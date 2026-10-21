@@ -3,6 +3,18 @@
 const API = (window.FITNESS_API_BASE || "").replace(/\/$/, "");
 const state = { profile: null, summary: null, charts: {} };
 
+// On the hosted site, each browser is its own user: a random ID kept in this browser.
+// (The local server ignores it, so the web UI and the CLI share one profile there.)
+const USER_ID = (() => {
+  try {
+    let id = localStorage.getItem("fitness-user-id");
+    if (!id) localStorage.setItem("fitness-user-id", (id = crypto.randomUUID()));
+    return id;
+  } catch {
+    return crypto.randomUUID(); // storage blocked: works for this visit only
+  }
+})();
+
 // --- tiny DOM helper: text is always inserted as text, never as HTML -------------
 
 function h(tag, attrs = {}, ...children) {
@@ -24,7 +36,7 @@ const fmt = (n, digits = 0) => (n == null ? "–" : Number(n).toLocaleString(und
 
 async function api(path, options = {}) {
   const res = await fetch(API + path, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-User-Id": USER_ID },
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
@@ -421,14 +433,24 @@ form.addEventListener("submit", async (e) => {
 
 (async function init() {
   welcome();
+  // Free hosting puts the server to sleep when idle; waking it takes about a minute.
+  const waking = setTimeout(() => {
+    $("#model-status").textContent = "waking server…";
+    addMessage("agent thinking", "Waking up the server (free hosting sleeps when idle, this takes about a minute)");
+  }, 2500);
   try {
-    const { provider, model } = await api("/api/status");
+    const { provider, model, multi_user } = await api("/api/status");
+    clearTimeout(waking);
+    $(".msg.thinking")?.remove();
     $("#model-status").textContent = `${model} · ${provider}`;
+    $("#hosted-note").hidden = !multi_user;
     const { profile } = await api("/api/profile");
     let tab = "chat";
     try { tab = localStorage.getItem("fitness-tab") || "chat"; } catch {}
     showView(profile ? tab : "profile");
   } catch {
+    clearTimeout(waking);
+    $(".msg.thinking")?.remove();
     $("#model-status").textContent = "API offline";
     addMessage("error", "Can't reach the agents' server. Start it with: uv run fitness-web");
   }

@@ -5,14 +5,18 @@ Run with:  uv run fitness-web   (then open http://localhost:8000)
 The agents and the LangGraph workflow are the same ones the CLI uses. A plan
 request pauses at the human approval step and returns a thread_id; the UI
 resumes it with POST /api/approve.
+
+Hosted (FITNESS_MULTI_USER=1), each browser sends a random X-User-Id and only
+ever reads and writes its own rows. Locally, everything belongs to db.LOCAL_USER
+so the web UI and the CLI share one profile.
 """
 
 import os
 import uuid
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from langgraph.types import Command
@@ -30,6 +34,18 @@ app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"], a
 
 # One compiled graph for the process: its checkpointer holds paused plan requests by thread_id.
 graph = build_graph()
+
+
+def current_user(x_user_id: Annotated[str | None, Header()] = None) -> str:
+    if not config.MULTI_USER:
+        return db.LOCAL_USER
+    try:
+        return str(uuid.UUID(x_user_id or ""))
+    except ValueError:
+        raise HTTPException(400, "Missing or invalid X-User-Id header.") from None
+
+
+User = Annotated[str, Depends(current_user)]
 
 
 # --- profile -------------------------------------------------------------------
@@ -64,13 +80,13 @@ def summary(profile: dict) -> dict:
 
 
 @app.get("/api/profile")
-def get_profile():
-    profile = db.get_profile()
+def get_profile(user: User):
+    profile = db.get_profile(user)
     return {"profile": profile, "summary": summary(profile) if profile else None}
 
 
 @app.put("/api/profile")
-def put_profile(body: ProfileIn):
+def put_profile(body: ProfileIn, user: User):
     profile = body.model_dump()
     try:
         profile["max_lifts"] = {
@@ -78,29 +94,29 @@ def put_profile(body: ProfileIn):
         }
     except ValueError as e:
         raise HTTPException(422, str(e)) from None
-    db.save_profile(profile)
+    db.save_profile(user, profile)
     return {"profile": profile, "summary": summary(profile)}
 
 
 # --- dashboards ----------------------------------------------------------------
 
 @app.get("/api/today")
-def get_today():
-    profile = db.get_profile()
+def get_today(user: User):
+    profile = db.get_profile(user)
     return {
         "date": db.today(),
-        "totals": db.day_totals(),
-        "entries": db.day_entries(),
+        "totals": db.day_totals(user),
+        "entries": db.day_entries(user),
         "summary": summary(profile) if profile else None,
     }
 
 
 @app.get("/api/progress")
-def get_progress(days: int = 30):
-    profile = db.get_profile()
+def get_progress(user: User, days: int = 30):
+    profile = db.get_profile(user)
     if not profile:
         raise HTTPException(404, "Set up your profile first.")
-    h = db.history(days)
+    h = db.history(user, days)
     weights = [
         {"day": w["day"], "weight_lb": w["value"], "bmi": calc.bmi(w["value"], profile["height_in"])}
         for w in h["weights"]
@@ -119,8 +135,8 @@ def get_progress(days: int = 30):
 
 
 @app.get("/api/plans")
-def get_plans():
-    return {"meal_plan": db.latest_plan("meal"), "workout_plan": db.latest_plan("workout")}
+def get_plans(user: User):
+    return {"meal_plan": db.latest_plan(user, "meal"), "workout_plan": db.latest_plan(user, "workout")}
 
 
 # --- chat with the agents ------------------------------------------------------
@@ -149,13 +165,15 @@ def _run(payload, thread_id: str) -> dict:
 
 
 @app.post("/api/chat")
-def chat(body: ChatIn):
-    return _run({"user_input": body.message}, str(uuid.uuid4()))
+def chat(body: ChatIn, user: User):
+    return _run({"user_id": user, "user_input": body.message}, str(uuid.uuid4()))
 
 
 @app.post("/api/approve")
-def approve(body: ApproveIn):
-    if not graph.get_state({"configurable": {"thread_id": body.thread_id}}).next:
+def approve(body: ApproveIn, user: User):
+    pending = graph.get_state({"configurable": {"thread_id": body.thread_id}})
+    # Only the person who asked for a plan can approve it (and nothing is waiting after a restart).
+    if not pending.next or pending.values.get("user_id") != user:
         raise HTTPException(404, "That plan is no longer waiting for approval. Ask for a new one.")
     if body.action == "edit" and not (body.targets and body.feedback.strip()):
         raise HTTPException(422, "Say what to change and which plan to change.")
@@ -164,7 +182,7 @@ def approve(body: ApproveIn):
 
 @app.get("/api/status")
 def status():
-    return {"provider": config.PROVIDER, "model": config.MODEL}
+    return {"provider": config.PROVIDER, "model": config.MODEL, "multi_user": config.MULTI_USER}
 
 
 # Serve the UI last so /api routes take priority.

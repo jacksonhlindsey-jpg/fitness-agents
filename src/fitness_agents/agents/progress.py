@@ -9,7 +9,7 @@ def progress(state: FitnessState) -> FitnessState:
     if not profile:
         return {"response": "Set up your profile first so I have something to compare against."}
 
-    h = db.history(days=30)
+    h = db.history(state["user_id"], days=30)
     lines = ["Last 30 days:"]
 
     current = h["weights"][-1]["value"] if h["weights"] else profile["weight_lb"]

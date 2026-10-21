@@ -60,8 +60,25 @@ def test_plan_waits_for_approval_then_saves(client):
 
 def test_today_and_progress(client):
     client.put("/api/profile", json=PROFILE)
-    db.log_metric("body_weight_lb", 141)
+    db.log_metric(db.LOCAL_USER, "body_weight_lb", 141)
     today = client.get("/api/today").json()
     assert today["summary"]["water_goal_oz"] == 70
     progress = client.get("/api/progress").json()
     assert progress["current_weight_lb"] == 141
+
+
+def test_hosted_mode_keeps_each_visitor_separate(client, monkeypatch):
+    monkeypatch.setattr(config, "MULTI_USER", True)
+    alice = {"X-User-Id": "11111111-1111-4111-8111-111111111111"}
+    bob = {"X-User-Id": "22222222-2222-4222-8222-222222222222"}
+
+    assert client.get("/api/profile").status_code == 400  # no ID, no data
+    client.put("/api/profile", json=PROFILE, headers=alice)
+    assert client.get("/api/profile", headers=bob).json()["profile"] is None
+
+    pending = client.post("/api/chat", json={"message": "make me a meal plan"}, headers=alice).json()
+    stolen = client.post("/api/approve", json={"thread_id": pending["thread_id"], "action": "approve"}, headers=bob)
+    assert stolen.status_code == 404  # Bob can't approve Alice's plan
+    client.post("/api/approve", json={"thread_id": pending["thread_id"], "action": "approve"}, headers=alice)
+    assert client.get("/api/plans", headers=alice).json()["meal_plan"]
+    assert client.get("/api/plans", headers=bob).json()["meal_plan"] is None

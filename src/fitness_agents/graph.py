@@ -80,7 +80,7 @@ def save_plans(state: FitnessState) -> FitnessState:
     saved = []
     for kind in ("meal", "workout"):
         if plan := state.get(f"{kind}_plan"):
-            db.save_plan(kind, plan)
+            db.save_plan(state["user_id"], kind, plan)
             saved.append(kind)
     return {"approved": True, "response": f"Saved your {' and '.join(saved)} plan."}
 

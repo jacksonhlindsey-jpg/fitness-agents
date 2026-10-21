@@ -7,6 +7,7 @@ Planner = Literal["nutrition_planner", "workout_planner"]
 
 
 class FitnessState(TypedDict, total=False):
+    user_id: str                # whose data to read and write (see db.py)
     user_input: str
     profile: dict
     intent: Intent

@@ -26,7 +26,7 @@ Commands: /profile (set up or redo profile), /today, /help, /quit"""
 
 def main() -> None:
     print(f"Fitness Agents  (model: {config.MODEL} via {config.PROVIDER})\n" + DISCLAIMER + "\n")
-    if not db.get_profile():
+    if not db.get_profile(db.LOCAL_USER):
         print("Let's set up your profile first.\n")
         onboard()
     print(HELP)
@@ -47,7 +47,7 @@ def main() -> None:
         elif text == "/profile":
             onboard()
         elif text == "/today":
-            t = db.day_totals()
+            t = db.day_totals(db.LOCAL_USER)
             print(f"Today: {t['calories']} kcal | protein {t['protein_g']} g | carbs {t['carbs_g']} g"
                   f" | fat {t['fat_g']} g | water {t['water_oz']} oz")
         else:
@@ -58,7 +58,7 @@ def run_turn(graph, text: str) -> None:
     # Each message gets its own thread, so plan state doesn't leak between requests.
     cfg = {"configurable": {"thread_id": str(uuid.uuid4())}}
     try:
-        result = graph.invoke({"user_input": text}, cfg)
+        result = graph.invoke({"user_id": db.LOCAL_USER, "user_input": text}, cfg)
         while "__interrupt__" in result:
             decision = ask_approval(result["__interrupt__"][0].value)
             result = graph.invoke(Command(resume=decision), cfg)
@@ -96,7 +96,7 @@ def ask_approval(payload: dict) -> dict:
 # --- onboarding ---------------------------------------------------------------
 
 def onboard() -> None:
-    old = db.get_profile() or {}
+    old = db.get_profile(db.LOCAL_USER) or {}
     p: dict = {}
     feet, inches = _ask("Height (e.g. 5'10)", _parse_height, old.get("height_in"))
     p["height_in"] = feet * 12 + inches
@@ -123,7 +123,7 @@ def onboard() -> None:
         for lift in ("bench", "squat", "deadlift", "ohp")
     }
 
-    db.save_profile(p)
+    db.save_profile(db.LOCAL_USER, p)
     target = calc.calorie_target(p)
     value = calc.bmi(p["weight_lb"], p["height_in"])
     print(f"\nSaved. BMI {value} ({calc.bmi_category(value)}). "

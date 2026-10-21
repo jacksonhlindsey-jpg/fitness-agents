@@ -11,6 +11,7 @@ dependencies = [
     "fastapi>=0.156.8",
     "google-genai>=2.32.0",
     "langgraph>=1.2.14",
+    "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.0",
     "python-dotenv>=1.2.4",
     "uvicorn>=0.54.0",

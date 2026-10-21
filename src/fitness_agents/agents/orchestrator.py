@@ -34,7 +34,7 @@ def orchestrator(state: FitnessState) -> FitnessState:
     routing = llm.ask(SYSTEM, state["user_input"], Routing, effort="low")
     update: FitnessState = {
         "intent": routing.intent,
-        "profile": db.get_profile() or {},
+        "profile": db.get_profile(state["user_id"]) or {},
         "planners": PLANNERS_FOR.get(routing.intent, []),
         "revisions": 0,
     }

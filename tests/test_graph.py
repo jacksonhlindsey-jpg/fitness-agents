@@ -6,6 +6,7 @@ import pytest
 from langgraph.types import Command
 
 from fitness_agents import config, db, llm
+from fitness_agents.db import LOCAL_USER
 from fitness_agents.agents.nutrition_planner import Meal, MealItem, MealPlan
 from fitness_agents.agents.orchestrator import Routing
 from fitness_agents.agents.reviewer import Critique
@@ -38,7 +39,7 @@ WORKOUT = WorkoutPlan(
 @pytest.fixture
 def fake_llm(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "test.db")
-    db.save_profile(PROFILE)
+    db.save_profile(LOCAL_USER, PROFILE)
     calls: list[str] = []
     meal_drafts = iter([meal_plan(300), meal_plan(820)])  # first draft is far under target
 
@@ -62,7 +63,7 @@ def test_full_plan_runs_planners_in_parallel_revises_and_waits_for_approval(fake
     graph = build_graph()
     cfg = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
-    result = graph.invoke({"user_input": "make me a full plan"}, cfg)
+    result = graph.invoke({"user_id": LOCAL_USER, "user_input": "make me a full plan"}, cfg)
 
     # Both planners ran, the Reviewer's calorie rule rejected the first meal plan,
     # and only the Nutrition Planner was asked to redo its work.
@@ -73,8 +74,8 @@ def test_full_plan_runs_planners_in_parallel_revises_and_waits_for_approval(fake
     assert result["meal_plan"]["totals"]["calories"] == 2460
 
     # Nothing is saved until the user approves.
-    assert db.latest_plan("meal") is None
+    assert db.latest_plan(LOCAL_USER, "meal") is None
     result = graph.invoke(Command(resume={"action": "approve"}), cfg)
     assert result["approved"]
-    assert db.latest_plan("meal")["totals"]["calories"] == 2460
-    assert db.latest_plan("workout") is not None
+    assert db.latest_plan(LOCAL_USER, "meal")["totals"]["calories"] == 2460
+    assert db.latest_plan(LOCAL_USER, "workout") is not None
