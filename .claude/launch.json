@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fitness-web",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "fitness-web"],
+      "port": 8000
+    }
+  ]
+}

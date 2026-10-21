@@ -119,7 +119,7 @@ def onboard() -> None:
     print("\nMax lifts: enter a 1-rep max (225) or a recent set (185x5), or leave blank.")
     old_maxes = old.get("max_lifts", {})
     p["max_lifts"] = {
-        lift: _ask(f"  {lift}", _parse_lift, old_maxes.get(lift), allow_blank=True)
+        lift: _ask(f"  {lift}", calc.parse_lift, old_maxes.get(lift), allow_blank=True)
         for lift in ("bench", "squat", "deadlift", "ohp")
     }
 
@@ -161,13 +161,6 @@ def _parse_height(raw: str) -> tuple[int, int]:
     if not m:
         raise ValueError("Use a format like 5'10")
     return int(m.group(1)), int(m.group(2) or 0)
-
-
-def _parse_lift(raw: str) -> float:
-    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(?:[x*]\s*(\d+))?", raw.lower())
-    if not m:
-        raise ValueError("Use a weight like 225 or a set like 185x5")
-    return calc.epley_1rm(float(m.group(1)), int(m.group(2) or 1))
 
 
 def _choice(*options):

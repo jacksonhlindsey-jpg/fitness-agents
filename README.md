@@ -14,8 +14,11 @@ Requires [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 cd ~/fitness-agents
 uv sync
 cp .env.example .env
-uv run fitness-agents
+uv run fitness-web        # web UI at http://localhost:8000
+uv run fitness-agents     # or the command-line chat
 ```
+
+The web UI has five tabs: **Chat** (talk to the agents; plans arrive as cards with Approve / Edit / Reject), **Today** (calories, macros, water, and everything logged), **Progress** (weight and calorie charts, runs, max lifts), **Plans** (your approved plans), and **Profile**.
 
 Pick one free LLM provider:
 
@@ -103,7 +106,9 @@ graph TD
 ## Project layout
 
 ```
+web/                  web UI (plain HTML/CSS/JS, no build step; GitHub Pages-ready)
 src/fitness_agents/
+  server.py           FastAPI web API; serves web/ locally
   cli.py              command-line chat, onboarding, approval prompt
   graph.py            LangGraph workflow (routing, review loop, human approval)
   state.py            shared state passed between agents
@@ -117,7 +122,6 @@ tests/                unit tests and a full-workflow test with a fake LLM
 
 ## Next steps
 
-- Web front end on GitHub Pages, backed by a small FastAPI server hosted elsewhere (Pages can't run Python or hold an API key)
-- Charts for weight, BMI, and calorie trends
+- Host it: web/ on GitHub Pages, the API on a free host (Pages can't run Python or hold an API key). Set `window.FITNESS_API_BASE` in `web/config.js` and `FITNESS_CORS_ORIGINS` on the server.
 - Exercise database (wger) for exercise alternatives
 - Evaluation: compare Tracker calorie estimates against USDA values on a fixed set of meals

@@ -135,6 +135,21 @@ def day_totals(day: str | None = None) -> dict:
     return {**{k: round(food[k]) for k in food.keys()}, "water_oz": round(water)}
 
 
+def day_entries(day: str | None = None) -> dict:
+    """Everything logged on one day, for the Today view."""
+    day = day or today()
+    with connect() as conn:
+        foods = conn.execute(
+            "SELECT food, grams, calories, protein_g, source FROM food_log WHERE day = ? ORDER BY id", (day,)
+        ).fetchall()
+        activities = conn.execute(
+            "SELECT kind, description, distance_mi, duration_min, exercise, sets, reps, weight_lb"
+            " FROM activity_log WHERE day = ? ORDER BY id",
+            (day,),
+        ).fetchall()
+    return {"foods": [dict(r) for r in foods], "activities": [dict(r) for r in activities]}
+
+
 def history(days: int = 30) -> dict:
     """Recent raw history for the progress summary."""
     since = (date.today() - timedelta(days=days)).isoformat()

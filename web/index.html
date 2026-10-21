@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fitness Agents</title>
+  <meta name="description" content="Multi-agent fitness tracker: log meals and workouts in plain English and get reviewed meal and workout plans.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232a78d6'/><path d='M8 13v6M11 11v10M21 11v10M24 13v6M11 16h10' stroke='white' stroke-width='2.5' stroke-linecap='round'/></svg>">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span>Fitness Agents</span>
+    </div>
+    <span class="model" id="model-status"></span>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-view="chat" aria-selected="true">Chat</button>
+    <button role="tab" data-view="today">Today</button>
+    <button role="tab" data-view="progress">Progress</button>
+    <button role="tab" data-view="plans">Plans</button>
+    <button role="tab" data-view="profile">Profile</button>
+  </nav>
+
+  <main>
+    <!-- Chat with the agents -->
+    <section id="view-chat" class="view chat-view" role="tabpanel">
+      <div class="messages" id="messages" aria-live="polite"></div>
+      <div class="suggestions" id="suggestions">
+        <button data-say="make me a full plan">Make me a full plan</button>
+        <button data-say="had 3 eggs and a banana, drank 20 oz water">Log a meal</button>
+        <button data-say="bench 145 for 6">Log a lift</button>
+        <button data-say="how am I doing?">How am I doing?</button>
+      </div>
+      <form class="composer" id="composer">
+        <input id="composer-input" autocomplete="off" placeholder="Log a meal, a lift, a run, or ask for a plan…" aria-label="Message">
+        <button type="submit" class="primary">Send</button>
+      </form>
+    </section>
+
+    <!-- Today -->
+    <section id="view-today" class="view" role="tabpanel" hidden>
+      <h1 class="view-title">Today <span class="muted" id="today-date"></span></h1>
+      <div class="tiles" id="today-tiles"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Food</h2>
+          <div id="today-foods"></div>
+        </div>
+        <div class="card">
+          <h2>Activity</h2>
+          <div id="today-activities"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Progress -->
+    <section id="view-progress" class="view" role="tabpanel" hidden>
+      <h1 class="view-title">Progress <span class="muted">last 30 days</span></h1>
+      <div class="tiles" id="progress-tiles"></div>
+      <div class="card chart-card">
+        <h2>Body weight <span class="muted" id="weight-subtitle"></span></h2>
+        <div class="chart-box"><canvas id="weight-chart" aria-label="Body weight over time"></canvas></div>
+        <p class="empty" id="weight-empty" hidden>Log your weight in chat (for example "weighed 141 this morning") to see a trend.</p>
+        <details class="table-view"><summary>Show as table</summary><div id="weight-table"></div></details>
+      </div>
+      <div class="card chart-card">
+        <h2>Calories per day <span class="muted" id="calorie-subtitle"></span></h2>
+        <div class="chart-box"><canvas id="calorie-chart" aria-label="Calories eaten per day"></canvas></div>
+        <p class="empty" id="calorie-empty" hidden>Log meals in chat to see your daily intake.</p>
+        <details class="table-view"><summary>Show as table</summary><div id="calorie-table"></div></details>
+      </div>
+      <div class="card">
+        <h2>Runs</h2>
+        <div id="runs"></div>
+      </div>
+    </section>
+
+    <!-- Approved plans -->
+    <section id="view-plans" class="view" role="tabpanel" hidden>
+      <h1 class="view-title">Your plans</h1>
+      <div id="plans"></div>
+    </section>
+
+    <!-- Profile -->
+    <section id="view-profile" class="view" role="tabpanel" hidden>
+      <h1 class="view-title">Profile</h1>
+      <p class="notice" id="profile-intro" hidden>Set up your profile so the agents can calculate your targets and build plans.</p>
+      <div class="tiles" id="profile-tiles"></div>
+      <form class="card form" id="profile-form">
+        <fieldset>
+          <legend>Body</legend>
+          <label>Height <span class="pair"><input name="height_ft" type="number" min="3" max="7" required aria-label="Feet"> ft <input name="height_in_rem" type="number" min="0" max="11" required aria-label="Inches"> in</span></label>
+          <label>Weight (lb) <input name="weight_lb" type="number" step="0.1" required></label>
+          <label>Goal weight (lb) <input name="goal_weight_lb" type="number" step="0.1" required></label>
+          <label>Change per week (lb) <input name="weekly_rate_lb" type="number" step="0.25" min="0" max="5" value="1"></label>
+          <label>Age <input name="age" type="number" min="13" max="100" required></label>
+          <label>Sex (for calorie formulas)
+            <select name="sex" required><option value="male">Male</option><option value="female">Female</option></select>
+          </label>
+          <label>Activity level
+            <select name="activity" required>
+              <option value="sedentary">Sedentary</option>
+              <option value="light">Light</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="active">Active</option>
+              <option value="very_active">Very active</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Food</legend>
+          <label class="wide">Foods you like <input name="food_likes" placeholder="eggs, chicken, rice"></label>
+          <label class="wide">Foods to avoid or allergies <input name="food_avoid" placeholder="peanuts, shellfish"></label>
+        </fieldset>
+        <fieldset>
+          <legend>Training</legend>
+          <label>Training days per week <input name="training_days" type="number" min="1" max="7" value="3"></label>
+          <label>Equipment <input name="equipment" value="full gym"></label>
+          <label class="wide">Exercises to avoid <input name="avoid_exercises" placeholder="leg press"></label>
+          <p class="hint wide">Max lifts: a one-rep max (225) or a recent set (185x5). Leave blank if you don't know.</p>
+          <label>Bench <input name="lift_bench" placeholder="185x5"></label>
+          <label>Squat <input name="lift_squat"></label>
+          <label>Deadlift <input name="lift_deadlift"></label>
+          <label>Overhead press <input name="lift_ohp"></label>
+        </fieldset>
+        <div class="form-actions">
+          <button type="submit" class="primary">Save profile</button>
+          <span class="form-status" id="profile-status" role="status"></span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="disclaimer">Class project (CIS 4394), not medical advice. With a medical condition or a history of disordered eating, talk to a doctor or dietitian first.</footer>
+</body>
+</html>

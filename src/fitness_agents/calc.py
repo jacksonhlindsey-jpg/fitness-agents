@@ -3,6 +3,8 @@
 Units are imperial at the edges (lb, inches, miles) because that's what users type.
 """
 
+import re
+
 LB_TO_KG = 0.453592
 IN_TO_CM = 2.54
 KCAL_PER_LB_FAT = 3500
@@ -114,3 +116,11 @@ def strength_profile(max_lifts: dict, weight_lb: float, sex: str) -> dict:
     ranked = sorted(scores, key=scores.get)
     weak = [lift for lift in ranked if scores[lift] < average - 0.1] or ranked[:1]
     return {"scores": scores, "weak_points": weak}
+
+
+def parse_lift(raw: str) -> float:
+    """A max lift typed as a one-rep max ("225") or a recent set ("185x5"), as an estimated 1RM."""
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(?:[x*]\s*(\d+))?", raw.strip().lower())
+    if not m:
+        raise ValueError("Use a weight like 225 or a set like 185x5")
+    return epley_1rm(float(m.group(1)), int(m.group(2) or 1))
