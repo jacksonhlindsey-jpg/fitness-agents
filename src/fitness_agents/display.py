@@ -46,7 +46,8 @@ def format_trace(trace: list[dict]) -> str:
             label = {"finish": "Answer", "ask_user": "Asked the user", "step_limit": "Stopped (step limit)"}[step["type"]]
             lines.append(f"{label}: {step['text']}")
             continue
-        lines.append(f"Step {step['step']}")
+        timing = f"  ({step['model']}, {step['seconds']} s)" if step.get("seconds") is not None else ""
+        lines.append(f"Step {step['step']}{timing}")
         lines.append(f"  Thought: {step['thought']}")
         for call in step["calls"]:
             lines.append(f"  Tool call: {call['tool']}({json.dumps(call['input'])})")

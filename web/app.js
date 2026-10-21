@@ -128,7 +128,8 @@ function traceView(trace) {
     h("summary", {}, `How the Tracker agent worked this out · ${steps.length} step${steps.length === 1 ? "" : "s"}`),
     h("ol", {}, steps.map((s) =>
       h("li", {},
-        h("div", { class: "thought" }, h("strong", {}, "Thought "), s.thought),
+        h("div", { class: "thought" }, h("strong", {}, "Thought "), s.thought,
+          s.seconds != null ? h("span", { class: "muted" }, ` · ${s.model}, ${s.seconds} s`) : null),
         s.calls.map((c) => h("div", { class: "call" },
           h("code", {}, `${c.tool}(${JSON.stringify(c.input)})`),
           h("div", { class: "observation" }, "→ ", short(c.observation))))))),

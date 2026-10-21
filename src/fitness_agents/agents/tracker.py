@@ -130,7 +130,8 @@ def tracker(state: FitnessState) -> FitnessState:
         if not step.actions:
             calls.append({"tool": None, "input": {}, "observation": {"error": "Call at least one tool."}})
 
-        trace.append({"step": number, "thought": step.thought, "calls": calls})
+        trace.append({"step": number, "thought": step.thought, "calls": calls,
+                      "model": getattr(llm.last_call, "model", None), "seconds": getattr(llm.last_call, "seconds", None)})
         transcript += _render_step(number, step.thought, calls)
         if outcome:
             break

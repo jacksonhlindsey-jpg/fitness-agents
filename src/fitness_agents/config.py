@@ -7,7 +7,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+def _key(name: str, default: str = "") -> str:
+    """An API key from the environment, without stray spaces or quotes from copy-pasting."""
+    return os.getenv(name, default).strip().strip("'\"").strip()
+
+
+GEMINI_API_KEY = _key("GEMINI_API_KEY")
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 
 # gemini (free key), ollama (local, no key), or anthropic (paid). See llm.py.
@@ -18,7 +24,7 @@ MODEL = os.getenv("FITNESS_MODEL") or DEFAULT_MODELS[PROVIDER]
 # the planners and the Reviewer use MODEL.
 FAST_MODEL = os.getenv("FITNESS_FAST_MODEL") or ("gemini-3.5-flash-lite" if PROVIDER == "gemini" else MODEL)
 
-USDA_API_KEY = os.getenv("USDA_API_KEY", "DEMO_KEY")
+USDA_API_KEY = _key("USDA_API_KEY") or "DEMO_KEY"
 
 # Storage: SQLite file locally; Postgres when DATABASE_URL is set (hosted).
 DB_PATH = Path(os.getenv("FITNESS_DB", "data/fitness.db"))

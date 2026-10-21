@@ -9,6 +9,7 @@ Default: gemini when GEMINI_API_KEY is set, otherwise ollama.
 """
 
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -26,10 +27,17 @@ class LLMError(RuntimeError):
     """The model did not return a usable answer. The message is safe to show the user."""
 
 
+# Which model answered the most recent call on this thread, and how long it took (for traces).
+last_call = threading.local()
+
+
 def ask(system: str, prompt: str, schema: type[T], effort: Effort = "low") -> T:
     """Send one request and return the response parsed into `schema`."""
     providers = {"gemini": _ask_gemini, "ollama": _ask_ollama, "anthropic": _ask_anthropic}
+    last_call.model = config.FAST_MODEL if effort == "low" else config.MODEL
+    start = time.monotonic()
     text = providers[config.PROVIDER](system, prompt, schema, effort)
+    last_call.seconds = round(time.monotonic() - start, 1)
     try:
         return schema.model_validate_json(text)
     except ValidationError:
@@ -78,6 +86,7 @@ def _ask_gemini(system: str, prompt: str, schema: type[BaseModel], effort: Effor
                 raise LLMError(f"Gemini rejected the request ({e.code}).") from None
             if not response.text:
                 raise LLMError("Gemini returned an empty answer (it may have been blocked). Try rephrasing.")
+            last_call.model = model
             return response.text
 
     raise LLMError(

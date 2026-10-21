@@ -63,8 +63,12 @@ def fetch(query: str) -> list[dict]:
         with urllib.request.urlopen(request, timeout=8) as resp:
             return json.load(resp).get("foods") or []
     except urllib.error.HTTPError as e:
-        log.warning("USDA lookup for %r failed: HTTP %s", query, e.code)  # 403 = bad key, 429 = rate limit
-        raise LookupFailed(f"USDA returned HTTP {e.code}") from None
+        try:  # USDA explains itself, e.g. {"error": {"code": "API_KEY_INVALID"}}
+            reason = json.loads(e.read())["error"]["code"]
+        except Exception:
+            reason = {403: "forbidden", 429: "rate limited"}.get(e.code, "error")
+        log.warning("USDA lookup for %r failed: HTTP %s %s", query, e.code, reason)
+        raise LookupFailed(f"USDA returned HTTP {e.code} ({reason})") from None
     except urllib.error.URLError as e:
         log.warning("USDA lookup for %r failed: %s", query, e.reason)
         raise LookupFailed(f"USDA could not be reached ({e.reason})") from None
