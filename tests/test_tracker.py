@@ -170,3 +170,32 @@ def test_tool_call_limit_stops_a_flood_of_calls(monkeypatch):
 def tracker_limits():
     from fitness_agents.agents.tracker import MAX_TOOL_CALLS
     return {"calls": MAX_TOOL_CALLS}
+
+
+def test_finishing_without_logging_a_found_food_is_sent_back_once(monkeypatch):
+    """Eval failure: the agent found "Apple, raw", said it logged it, and finished without log_food."""
+    apple = {"description": "Apple, raw", "calories": 61, "protein_g": 0.2, "carbs_g": 14.8, "fat_g": 0.1, "fiber_g": 2.1}
+    usda(monkeypatch, {"apple, raw": [apple]})
+    script(
+        monkeypatch,
+        Step(thought="Search.", actions=[SearchFood(tool="search_food", query="apple, raw")]),
+        Step(thought="I have logged the apple.", actions=[Finish(tool="finish", answer="Great job logging your apple!")]),
+        Step(thought="Log it for real.", actions=[log_food("apple", 182, "Apple, raw", 95)]),
+        Step(thought="Done.", actions=[Finish(tool="finish", answer="Nice.")]),
+    )
+    out = run("ate an apple")
+    assert out["trace"][1]["calls"][0]["observation"]["error"].startswith("You searched for food but logged nothing")
+    assert db.day_totals(ME)["calories"] == 111  # 61 kcal/100 g x 182 g
+
+
+def test_a_second_finish_without_logging_is_reported_honestly(monkeypatch):
+    usda(monkeypatch, {"homework": [EGG]})
+    script(
+        monkeypatch,
+        Step(thought="Search.", actions=[SearchFood(tool="search_food", query="homework")]),
+        Step(thought="Finish.", actions=[Finish(tool="finish", answer="I can only log real food.")]),
+        Step(thought="Still not food.", actions=[Finish(tool="finish", answer="I can only log real food.")]),
+    )
+    out = run("I ate my homework")
+    assert out["response"].startswith("Nothing was logged.")
+    assert db.day_totals(ME)["calories"] == 0

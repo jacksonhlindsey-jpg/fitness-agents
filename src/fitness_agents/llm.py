@@ -9,6 +9,7 @@ Default: gemini when GEMINI_API_KEY is set, otherwise ollama.
 """
 
 import json
+import re
 import threading
 import time
 import urllib.error
@@ -46,21 +47,28 @@ def ask(system: str, prompt: str, schema: type[T], effort: Effort = "low") -> T:
 
 # --- Gemini (free tier) ------------------------------------------------------
 
-# Free-tier models are often overloaded (503) or rate limited (429). Each model has its
-# own quota, so when one is busy we retry briefly and then move to the next.
+# Free-tier models are often overloaded (503), rate limited (429), or very slow. Each model
+# has its own quota, so when one is busy we retry briefly and then move to the next. If every
+# model is rate limited, we wait the delay Google asks for (capped) and go round once more.
 GEMINI_BACKUP_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]  # tried in this order
-_RETRY_WAITS = (2, 5)  # seconds to wait before each retry on the same model
+_RETRY_WAITS = (2, 5)        # seconds to wait before each retry on the same model
+GEMINI_TIMEOUT_S = 30        # a call slower than this fails over to the next model
+MAX_QUOTA_WAIT_S = 30        # longest we wait for a per-minute quota to reset
 
 _gemini_client = None
 
 
 def _ask_gemini(system: str, prompt: str, schema: type[BaseModel], effort: Effort) -> str:
+    import httpx
     from google import genai
     from google.genai import errors, types
 
     global _gemini_client
     if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=config.GEMINI_API_KEY)
+        _gemini_client = genai.Client(
+            api_key=config.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_S * 1000),  # milliseconds
+        )
     request_config = types.GenerateContentConfig(
         system_instruction=system,
         response_mime_type="application/json",
@@ -68,32 +76,48 @@ def _ask_gemini(system: str, prompt: str, schema: type[BaseModel], effort: Effor
         max_output_tokens=config.MAX_OUTPUT_TOKENS[effort],
     )
     first = config.FAST_MODEL if effort == "low" else config.MODEL
-    models = [first] + [m for m in GEMINI_BACKUP_MODELS if m != first]
+    models = list(dict.fromkeys([first, *GEMINI_BACKUP_MODELS, config.MODEL]))  # in order, no repeats
 
-    for model in models:
-        for wait in (0, *_RETRY_WAITS):
-            time.sleep(wait)
-            try:
-                response = _gemini_client.models.generate_content(
-                    model=model, contents=prompt, config=request_config
-                )
-            except errors.ServerError:
-                continue  # overloaded: retry, then fall through to the next model
-            except errors.ClientError as e:
-                if e.code == 429:
-                    break  # this model's quota is used up: go straight to the next model
-                if e.code in (400, 401, 403) and "key" in str(e).lower():
-                    raise LLMError("Your GEMINI_API_KEY is missing or invalid. Check .env.") from None
-                raise LLMError(f"Gemini rejected the request ({e.code}).") from None
-            if not response.text:
-                raise LLMError("Gemini returned an empty answer (it may have been blocked). Try rephrasing.")
-            last_call.model = model
-            return response.text
+    for round_ in range(2):
+        quota_waits = []
+        for model in models:
+            for wait in (0, *_RETRY_WAITS):
+                time.sleep(wait)
+                try:
+                    response = _gemini_client.models.generate_content(
+                        model=model, contents=prompt, config=request_config
+                    )
+                except errors.ServerError:
+                    continue  # overloaded: retry, then fall through to the next model
+                except httpx.TimeoutException:
+                    break  # too slow: don't wait on it again, try the next model
+                except httpx.TransportError:
+                    continue  # network blip: retry
+                except errors.ClientError as e:
+                    if e.code == 429:
+                        quota_waits.append(_retry_delay(e))
+                        break  # this model's quota is used up for now: go to the next model
+                    if e.code in (400, 401, 403) and "key" in str(e).lower():
+                        raise LLMError("Your GEMINI_API_KEY is missing or invalid. Check .env.") from None
+                    raise LLMError(f"Gemini rejected the request ({e.code}).") from None
+                if not response.text:
+                    raise LLMError("Gemini returned an empty answer (it may have been blocked). Try rephrasing.")
+                last_call.model = model
+                return response.text
+        if not quota_waits or round_ == 1:
+            break
+        time.sleep(min(max(quota_waits), MAX_QUOTA_WAIT_S))  # per-minute quotas reset quickly
 
     raise LLMError(
         "Every free Gemini model is busy or out of quota right now. Wait a few minutes, "
         "or set FITNESS_PROVIDER=ollama in .env to use the local model."
     )
+
+
+def _retry_delay(error) -> float:
+    """Seconds Google asks us to wait before retrying (its RetryInfo), or a default."""
+    match = re.search(r"retryDelay['\"]?\s*:\s*['\"]?(\d+(?:\.\d+)?)s", str(error))
+    return float(match.group(1)) if match else 15.0
 
 
 # --- Ollama (local, free) ----------------------------------------------------

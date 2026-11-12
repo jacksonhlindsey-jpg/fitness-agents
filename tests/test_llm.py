@@ -71,3 +71,12 @@ def test_quick_jobs_use_the_fast_model_first(fake_gemini):
     models = fake_gemini({"gemini-3.5-flash-lite": [quota()]})
     assert llm.ask("sys", "hi", Answer, effort="low").ok
     assert models.calls == ["gemini-3.5-flash-lite", "gemini-3.6-flash"]
+
+
+def test_waits_for_quota_reset_then_tries_once_more(fake_gemini, monkeypatch):
+    slept = []
+    monkeypatch.setattr(llm.time, "sleep", slept.append)
+    models = fake_gemini({m: [quota()] for m in ("gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash")})
+    assert llm.ask("sys", "hi", Answer, effort="low").ok
+    assert models.calls == ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    assert max(slept) == 15.0  # no RetryInfo in the fake error, so the default wait

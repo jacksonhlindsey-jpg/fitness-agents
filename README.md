@@ -49,6 +49,21 @@ uv run pytest
 - **Privacy:** with `FITNESS_MULTI_USER=1`, each browser gets a random ID and only ever sees its own profile, logs, and plans. Locally, the CLI and the web UI share one profile.
 - Render's free tier sleeps after 15 idle minutes, so the first visit after that takes about a minute while it wakes up.
 
+## Evaluation
+
+`evals/` holds 15 test cases with known-good answers (5 edge or adversarial, including two prompt injections) and a harness that runs each one k times through the real Orchestrator -> Tracker path, with live USDA lookups, on a fresh database. It grades what was actually saved, not just the reply, and reports pass@1 (share of runs that pass) next to pass^k (share of cases that pass every run).
+
+```bash
+uv run python evals/run_evals.py --runs 3              # needs GEMINI_API_KEY and USDA_API_KEY in .env
+uv run python evals/run_evals.py --provider ollama     # or a free local model
+```
+
+Results land in `evals/results/` as a markdown summary and a JSON file with every run's trace.
+
+## Limits on the public link
+
+All in `src/fitness_agents/config.py`: an output-token cap per model answer; 6 steps and 12 tool calls per Tracker turn; 600-character messages; and on the hosted server, 40 messages and 5 plans per visitor per day plus 120 requests per IP per hour. The logging tools refuse implausible values (portion, calories, lift weight, body weight), so a prompt injection can't save them. Plans are only saved through the approval card, which shows the exact data `save_plans` will write.
+
 ## Example session
 
 ```

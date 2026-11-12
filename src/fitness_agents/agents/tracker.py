@@ -128,17 +128,27 @@ class Step(BaseModel):
 
 # --- the agent loop ------------------------------------------------------------
 
+# Sent back (once) when the agent tries to finish after searching for food but logging none:
+# the eval caught it claiming "I have logged the apple" without ever calling log_food.
+UNLOGGED_SEARCH = ("You searched for food but logged nothing. If the user really ate it, call log_food "
+                   "now. If it isn't real food or is too vague, say so in finish or call ask_user.")
+
 def tracker(state: FitnessState) -> FitnessState:
     session = _Session(state["user_id"], state.get("profile") or {})
     transcript = f"User message: {state['user_input']}"
     trace: list[dict] = []
     outcome: dict | None = None
 
-    tool_calls = 0
+    tool_calls, nudged = 0, False
     for number in range(1, MAX_STEPS + 1):
         step = llm.ask(SYSTEM, transcript + "\n\nTake your next step.", Step, effort="low")
         calls = []
         for action in step.actions:
+            if isinstance(action, Finish) and session.found_food and not session.logged_food and not nudged:
+                nudged = True
+                calls.append({"tool": "finish", "input": {"answer": action.answer},
+                              "observation": {"error": UNLOGGED_SEARCH}})
+                break
             if isinstance(action, (Finish, AskUser)):
                 text = action.answer if isinstance(action, Finish) else action.question
                 outcome = {"type": action.tool, "text": text}
@@ -190,6 +200,7 @@ class _Session:
         self.logged: list[str] = []             # lines for the reply
         self.logged_keys: set[tuple] = set()
         self.logged_food = False
+        self.found_food = False                 # a search returned matches
 
     def run(self, action) -> dict | list:
         handler = getattr(self, f"_{action.tool}")
@@ -204,6 +215,7 @@ class _Session:
             return {"error": f"{e}. Log this food with usda_match null and your own estimate."}
         if not results:
             return {"result": "No matches. Try a simpler term, or log with usda_match null and your estimate."}
+        self.found_food = True
         for r in results:
             self.candidates[r["description"].lower()] = r
         return [{"match": r["description"], "per_100g": {k: r[k] for k in ("calories", "protein_g", "carbs_g", "fat_g")}}
@@ -296,6 +308,8 @@ class _Session:
 
     def response(self, outcome: dict) -> str:
         lines = list(self.logged)
+        if not lines and outcome["type"] == "finish":
+            lines.append("Nothing was logged.")  # never let the coaching note imply otherwise
         if self.logged_food:
             totals = db.day_totals(self.user_id)
             if self.profile:
