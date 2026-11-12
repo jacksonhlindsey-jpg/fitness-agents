@@ -289,7 +289,7 @@ class _Session:
                 self.profile["weight_lb"] = a.value
                 db.save_profile(self.user_id, self.profile)
         else:
-            self.logged.append(f"Logged {a.value:g} oz water")
+            self.logged.append(f"Logged {round(a.value, 1):g} oz water")
         return {"logged": a.metric, "value": a.value}
 
     def _get_today_totals(self, a: GetTodayTotals):
