@@ -218,6 +218,9 @@ td.num, th.num { text-align: right; }
 .day ul { margin: 0; padding-left: 16px; }
 .flags { background: var(--warn-soft); border-radius: 10px; padding: 8px 12px; margin-top: 12px; font-size: 13.5px; }
 .flags ul { margin: 4px 0 0; padding-left: 18px; }
+.gate { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; white-space: normal; }
+.gate-args summary { cursor: pointer; color: var(--text-2); margin-top: 6px; }
+.gate-args pre { max-height: 260px; overflow: auto; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin: 6px 0 0; white-space: pre; }
 .approval { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .edit-box { width: 100%; display: grid; gap: 8px; margin-top: 4px; }
 .edit-box textarea { width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); resize: vertical; }

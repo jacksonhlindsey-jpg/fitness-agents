@@ -65,6 +65,7 @@ def _ask_gemini(system: str, prompt: str, schema: type[BaseModel], effort: Effor
         system_instruction=system,
         response_mime_type="application/json",
         response_json_schema=schema.model_json_schema(),
+        max_output_tokens=config.MAX_OUTPUT_TOKENS[effort],
     )
     first = config.FAST_MODEL if effort == "low" else config.MODEL
     models = [first] + [m for m in GEMINI_BACKUP_MODELS if m != first]
@@ -104,7 +105,7 @@ def _ask_ollama(system: str, prompt: str, schema: type[BaseModel], effort: Effor
         "format": schema.model_json_schema(),  # constrains the output to this JSON schema
         "stream": False,
         "think": False,  # skip slow step-by-step reasoning on models that support it
-        "options": {"temperature": 0.2},
+        "options": {"temperature": 0.2, "num_predict": config.MAX_OUTPUT_TOKENS[effort]},
     }
     request = urllib.request.Request(
         f"{config.OLLAMA_URL}/api/chat",
@@ -144,7 +145,7 @@ def _ask_anthropic(system: str, prompt: str, schema: type[BaseModel], effort: Ef
     try:
         response = _anthropic_client.beta.messages.parse(
             model=config.MODEL,
-            max_tokens=16000,
+            max_tokens=config.MAX_OUTPUT_TOKENS[effort],
             system=system,
             messages=[{"role": "user", "content": prompt}],
             output_format=schema,

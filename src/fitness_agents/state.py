@@ -12,6 +12,7 @@ class FitnessState(TypedDict, total=False):
     profile: dict
     intent: Intent
     planners: list[Planner]     # which planners this request needs
+    plans_left: int             # plan requests this visitor has left today (hosted cap)
 
     meal_plan: dict | None
     workout_plan: dict | None

@@ -38,8 +38,16 @@ def route_intent(state: FitnessState):
     if intent == "progress":
         return "progress"
     if state["planners"]:
-        return state["planners"] if state.get("profile") else "needs_profile"
+        if not state.get("profile"):
+            return "needs_profile"
+        if state.get("plans_left", 1) <= 0:
+            return "plan_limit"
+        return state["planners"]
     return END  # chat: the Orchestrator already wrote the reply
+
+
+def plan_limit(state: FitnessState) -> FitnessState:
+    return {"response": f"You've reached today's limit of {config.PLANS_PER_DAY} plans. Try again tomorrow."}
 
 
 def needs_profile(state: FitnessState) -> FitnessState:
@@ -91,6 +99,7 @@ def build_graph():
     g.add_node("tracker", tracker)
     g.add_node("progress", progress)
     g.add_node("needs_profile", needs_profile)
+    g.add_node("plan_limit", plan_limit)
     g.add_node("nutrition_planner", nutrition_planner)
     g.add_node("workout_planner", workout_planner)
     g.add_node("reviewer", reviewer)
@@ -100,12 +109,12 @@ def build_graph():
     g.add_edge(START, "orchestrator")
     g.add_conditional_edges(
         "orchestrator", route_intent,
-        ["tracker", "progress", "needs_profile", "nutrition_planner", "workout_planner", END],
+        ["tracker", "progress", "needs_profile", "plan_limit", "nutrition_planner", "workout_planner", END],
     )
     g.add_edge("nutrition_planner", "reviewer")
     g.add_edge("workout_planner", "reviewer")
     g.add_conditional_edges("reviewer", route_review, ["nutrition_planner", "workout_planner", "human_approval"])
-    for node in ("tracker", "progress", "needs_profile", "save_plans"):
+    for node in ("tracker", "progress", "needs_profile", "plan_limit", "save_plans"):
         g.add_edge(node, END)
 
     # The checkpointer is what lets the graph pause at human_approval and resume later.

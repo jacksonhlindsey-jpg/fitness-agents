@@ -43,7 +43,8 @@ def format_trace(trace: list[dict]) -> str:
     lines = []
     for step in trace:
         if step["step"] == "answer":
-            label = {"finish": "Answer", "ask_user": "Asked the user", "step_limit": "Stopped (step limit)"}[step["type"]]
+            label = {"finish": "Answer", "ask_user": "Asked the user", "step_limit": "Stopped (step limit)",
+                     "tool_limit": "Stopped (tool-call limit)"}[step["type"]]
             lines.append(f"{label}: {step['text']}")
             continue
         timing = f"  ({step['model']}, {step['seconds']} s)" if step.get("seconds") is not None else ""

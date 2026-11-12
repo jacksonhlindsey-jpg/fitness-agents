@@ -36,3 +36,12 @@ MULTI_USER = os.getenv("FITNESS_MULTI_USER", "") == "1"
 
 # How many times the Reviewer may send a plan back before it goes to the user anyway.
 MAX_REVISIONS = 2
+
+# --- Cost caps: the hosted link is public, so every limit is enforced in code -----
+MAX_OUTPUT_TOKENS = {"low": 4096, "medium": 8192, "high": 8192}  # per model answer
+MAX_TRACKER_STEPS = 6            # model steps per Tracker turn
+MAX_TOOL_CALLS = 12              # tool calls per Tracker turn
+MAX_MESSAGE_CHARS = 600          # per chat message
+MESSAGES_PER_DAY = int(os.getenv("FITNESS_MESSAGES_PER_DAY", "40"))   # per visitor (hosted only)
+PLANS_PER_DAY = int(os.getenv("FITNESS_PLANS_PER_DAY", "5"))          # per visitor; a plan is ~5 model calls
+REQUESTS_PER_HOUR_PER_IP = int(os.getenv("FITNESS_REQUESTS_PER_HOUR", "120"))

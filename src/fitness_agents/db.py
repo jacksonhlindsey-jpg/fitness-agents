@@ -163,6 +163,12 @@ def _migrate_single_user_sqlite(conn: sqlite3.Connection) -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT NOT NULL DEFAULT '{LOCAL_USER}'")
 
 
+def ping() -> None:
+    """A trivial query, to check the database is reachable (and keep a free host awake)."""
+    with _db() as db:
+        db.one("SELECT 1 AS ok")
+
+
 def today() -> str:
     return date.today().isoformat()
 

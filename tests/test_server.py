@@ -82,3 +82,28 @@ def test_hosted_mode_keeps_each_visitor_separate(client, monkeypatch):
     client.post("/api/approve", json={"thread_id": pending["thread_id"], "action": "approve"}, headers=alice)
     assert client.get("/api/plans", headers=alice).json()["meal_plan"]
     assert client.get("/api/plans", headers=bob).json()["meal_plan"] is None
+
+
+def test_hosted_caps_limit_messages_and_plans(client, monkeypatch):
+    monkeypatch.setattr(config, "MULTI_USER", True)
+    monkeypatch.setattr(config, "MESSAGES_PER_DAY", 3)
+    monkeypatch.setattr(config, "PLANS_PER_DAY", 1)
+    monkeypatch.setattr(server, "_usage", {})
+    me = {"X-User-Id": "33333333-3333-4333-8333-333333333333"}
+    client.put("/api/profile", json=PROFILE, headers=me)
+
+    first = client.post("/api/chat", json={"message": "make me a meal plan"}, headers=me).json()
+    assert first["type"] == "approval"
+    second = client.post("/api/chat", json={"message": "make me a meal plan"}, headers=me).json()
+    assert "limit of 1 plans" in second["response"]  # plan cap reached, no model calls for planners
+    client.post("/api/chat", json={"message": "make me a meal plan"}, headers=me)
+    blocked = client.post("/api/chat", json={"message": "hello"}, headers=me)
+    assert blocked.status_code == 429  # 3 messages a day
+
+
+def test_long_messages_are_rejected(client):
+    assert client.post("/api/chat", json={"message": "x" * 601}).status_code == 422
+
+
+def test_health_touches_the_database(client):
+    assert client.get("/api/health").json() == {"ok": True}

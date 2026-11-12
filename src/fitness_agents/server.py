@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from langgraph.types import Command
@@ -143,7 +143,7 @@ def get_plans(user: User):
 # --- chat with the agents ------------------------------------------------------
 
 class ChatIn(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(min_length=1, max_length=config.MAX_MESSAGE_CHARS)
 
 
 class ApproveIn(BaseModel):
@@ -165,13 +165,52 @@ def _run(payload, thread_id: str) -> dict:
     return {"type": "message", "response": result.get("response", ""), "trace": result.get("trace")}
 
 
+# --- usage caps (hosted only): the link is public, so limit what one visitor can spend ---
+# In memory: a restart resets them, which is fine for caps meant to stop runaway use.
+_usage: dict[tuple, int] = {}
+
+
+def _count(key: tuple, limit: int, message: str) -> None:
+    if _usage.get(key, 0) >= limit:
+        raise HTTPException(429, message)
+    _usage[key] = _usage.get(key, 0) + 1
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")  # Render's proxy puts the visitor first
+    return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+
+
+def _check_caps(user: str, request: Request) -> None:
+    if not config.MULTI_USER:
+        return
+    hour = time.strftime("%Y-%m-%dT%H")
+    _count(("ip", _client_ip(request), hour), config.REQUESTS_PER_HOUR_PER_IP,
+           "Too many requests from your network this hour. Try again later.")
+    _count(("messages", user, db.today()), config.MESSAGES_PER_DAY,
+           f"You've reached today's limit of {config.MESSAGES_PER_DAY} messages. Try again tomorrow.")
+
+
+def _plans_left(user: str) -> int:
+    if not config.MULTI_USER:
+        return config.PLANS_PER_DAY
+    return config.PLANS_PER_DAY - _usage.get(("plans", user, db.today()), 0)
+
+
 @app.post("/api/chat")
-def chat(body: ChatIn, user: User):
-    return _run({"user_id": user, "user_input": body.message}, str(uuid.uuid4()))
+def chat(body: ChatIn, user: User, request: Request):
+    _check_caps(user, request)
+    result = _run({"user_id": user, "user_input": body.message, "plans_left": _plans_left(user)},
+                  str(uuid.uuid4()))
+    if result["type"] == "approval":
+        key = ("plans", user, db.today())
+        _usage[key] = _usage.get(key, 0) + 1
+    return result
 
 
 @app.post("/api/approve")
-def approve(body: ApproveIn, user: User):
+def approve(body: ApproveIn, user: User, request: Request):
+    _check_caps(user, request)
     pending = graph.get_state({"configurable": {"thread_id": body.thread_id}})
     # Only the person who asked for a plan can approve it (and nothing is waiting after a restart).
     if not pending.next or pending.values.get("user_id") != user:
@@ -179,6 +218,16 @@ def approve(body: ApproveIn, user: User):
     if body.action == "edit" and not (body.targets and body.feedback.strip()):
         raise HTTPException(422, "Say what to change and which plan to change.")
     return _run(Command(resume=body.model_dump(exclude={"thread_id"})), body.thread_id)
+
+
+@app.get("/api/health")
+def health():
+    """Touches the database, so a scheduled ping keeps a free Supabase project from pausing."""
+    try:
+        db.ping()
+    except Exception as e:
+        raise HTTPException(503, f"database unavailable ({type(e).__name__})") from None
+    return {"ok": True}
 
 
 @app.get("/api/status")

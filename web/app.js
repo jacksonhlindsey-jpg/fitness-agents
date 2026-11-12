@@ -123,7 +123,7 @@ function traceView(trace) {
     const text = JSON.stringify(value);
     return text.length > 600 ? text.slice(0, 600) + "…" : text;
   };
-  const labels = { finish: "Answer", ask_user: "Asked you", step_limit: "Stopped at the step limit" };
+  const labels = { finish: "Answer", ask_user: "Asked you", step_limit: "Stopped at the step limit", tool_limit: "Stopped at the tool-call limit" };
   return h("details", { class: "trace" },
     h("summary", {}, `How the Tracker agent worked this out · ${steps.length} step${steps.length === 1 ? "" : "s"}`),
     h("ol", {}, steps.map((s) =>
@@ -181,6 +181,16 @@ function workoutPlanView(plan) {
 
 function renderApproval(card, pending) {
   card.replaceChildren();
+  // The human gate: name the exact action and show its exact arguments, not a summary.
+  const args = {};
+  if (pending.meal_plan) args.meal_plan = pending.meal_plan;
+  if (pending.workout_plan) args.workout_plan = pending.workout_plan;
+  card.append(h("div", { class: "gate" },
+    h("strong", {}, "Waiting for your approval. "),
+    `Approve runs save_plans(${Object.keys(args).join(", ")}) on this browser's profile. Nothing is saved until you click it.`,
+    h("details", { class: "gate-args" },
+      h("summary", {}, "Show the exact data that will be saved"),
+      h("pre", {}, JSON.stringify(args, null, 2)))));
   if (pending.meal_plan) card.append(mealPlanView(pending.meal_plan));
   if (pending.workout_plan) card.append(workoutPlanView(pending.workout_plan));
 
