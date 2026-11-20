@@ -210,6 +210,7 @@ def test_search_queries_cannot_carry_urls_or_long_payloads(monkeypatch):
             SearchFood(tool="search_food", query="x" * 61),
             SearchFood(tool="search_food", query="banana, raw")]),
         Step(thought="Done.", actions=[Finish(tool="finish", answer="")]),
+        Step(thought="Done, nothing to log.", actions=[Finish(tool="finish", answer="")]),  # after the finish guard
     )
     calls = run("a banana")["trace"][0]["calls"]
     assert "Refused" in calls[0]["observation"]["error"] and "Refused" in calls[1]["observation"]["error"]
